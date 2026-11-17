@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.StaticFiles;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,8 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors();
+
+var contentTypeProvider = new FileExtensionContentTypeProvider();
 
 // Caminho para a pasta onde os ficheiros MP3 estão guardados
 var musicFolderPath = Path.Combine(app.Environment.ContentRootPath, "Music");
@@ -114,15 +117,10 @@ app.MapMethods("/api/songs/{id}/stream", new[] { "GET", "HEAD" }, (string id) =>
         return Results.NotFound(new { error = $"Música com id '{id}' não encontrada." });
     }
 
-    var extension = Path.GetExtension(matchingFile).ToLowerInvariant();
-    var contentType = extension switch
+    if (!contentTypeProvider.TryGetContentType(matchingFile, out var contentType))
     {
-        ".mp3" => "audio/mpeg",
-        ".wav" => "audio/wav",
-        ".flac" => "audio/flac",
-        ".m4a" => "audio/mp4",
-        _ => "application/octet-stream"
-    };
+        contentType = "application/octet-stream";
+    }
 
     // enableRangeProcessing: true é FUNDAMENTAL para streaming de música.
     // Permite que o player (ex: ExoPlayer no Android) salte para a frente/trás (seek)
