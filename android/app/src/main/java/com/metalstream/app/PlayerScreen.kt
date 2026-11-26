@@ -20,15 +20,44 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun PlayerScreen() {
-    // Estados locais da UI (para testar os cliques e a barra)
+    // Estados do Player e da API
+    var songs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var currentIndex by remember { mutableIntStateOf(0) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
     var isPlaying by remember { mutableStateOf(false) }
-    var sliderPosition by remember { mutableFloatStateOf(0.35f) }
+    var sliderPosition by remember { mutableFloatStateOf(0.0f) }
+
+    // Chamada à API C# em segundo plano ao abrir o ecrã
+    LaunchedEffect(Unit) {
+        try {
+            isLoading = true
+            errorMessage = null
+            val response = NetworkClient.api.getSongs()
+            songs = response
+            isLoading = false
+        } catch (e: Exception) {
+            errorMessage = "Erro ao contactar API: ${e.localizedMessage}"
+            isLoading = false
+        }
+    }
+
+    val currentSong = songs.getOrNull(currentIndex)
+
+    // Formatar duração (segundos para mm:ss)
+    val totalDurationFormatted = currentSong?.let {
+        val totalSecs = it.durationSeconds.toInt()
+        val minutes = totalSecs / 60
+        val seconds = totalSecs % 60
+        String.format("%02d:%02d", minutes, seconds)
+    } ?: "00:00"
 
     // Tema Dark Metal por defeito
     val metalDarkColors = darkColorScheme(
-        primary = Color(0xFFE50914), // Vermelho vibrante Metal
-        background = Color(0xFF121212), // Preto profundo
-        surface = Color(0xFF1E1E1E), // Cinza escuro para cartões
+        primary = Color(0xFFE50914),
+        background = Color(0xFF121212),
+        surface = Color(0xFF1E1E1E),
         onBackground = Color.White,
         onSurface = Color.White
     )
@@ -45,7 +74,7 @@ fun PlayerScreen() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // 1. Top Bar / Cabeçalho
+                // 1. Cabeçalho
                 Text(
                     text = "METALSTREAM",
                     fontSize = 18.sp,
@@ -70,12 +99,16 @@ fun PlayerScreen() {
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.MusicNote,
-                            contentDescription = "Capa do Álbum",
-                            modifier = Modifier.size(120.dp),
-                            tint = Color.Gray
-                        )
+                        if (isLoading) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = "Capa do Álbum",
+                                modifier = Modifier.size(120.dp),
+                                tint = if (currentSong != null) MaterialTheme.colorScheme.primary else Color.Gray
+                            )
+                        }
                     }
                 }
 
@@ -84,23 +117,31 @@ fun PlayerScreen() {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Título e Artista
-                    Text(
-                        text = "Master Of Puppets",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Metallica - The Greatest Hits CD1",
-                        fontSize = 16.sp,
-                        color = Color.LightGray
-                    )
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage ?: "",
+                            fontSize = 14.sp,
+                            color = Color.Red
+                        )
+                    } else {
+                        // Título e Artista dinâmicos vindos da API
+                        Text(
+                            text = currentSong?.title ?: if (isLoading) "A carregar músicas..." else "Nenhuma música encontrada",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = currentSong?.let { "${it.artist} • ${it.album}" } ?: "",
+                            fontSize = 16.sp,
+                            color = Color.LightGray
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Barra de progresso (Slider)
+                    // Barra de progresso
                     Slider(
                         value = sliderPosition,
                         onValueChange = { sliderPosition = it },
@@ -112,36 +153,42 @@ fun PlayerScreen() {
                         )
                     )
 
-                    // Tempos (Decorrente vs Total)
+                    // Tempos
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(text = "03:00", fontSize = 12.sp, color = Color.Gray)
-                        Text(text = "08:34", fontSize = 12.sp, color = Color.Gray)
+                        Text(text = "00:00", fontSize = 12.sp, color = Color.Gray)
+                        Text(text = totalDurationFormatted, fontSize = 12.sp, color = Color.Gray)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Botões de Controlo (SkipPrevious, Play/Pause, SkipNext)
+                    // Botões de Controlo
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Botão Faixa Anterior
                         IconButton(
-                            onClick = { /* Anterior */ },
+                            onClick = {
+                                if (songs.isNotEmpty()) {
+                                    currentIndex = if (currentIndex - 1 < 0) songs.size - 1 else currentIndex - 1
+                                }
+                            },
+                            enabled = songs.isNotEmpty(),
                             modifier = Modifier.size(56.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.SkipPrevious,
                                 contentDescription = "Anterior",
                                 modifier = Modifier.size(36.dp),
-                                tint = Color.White
+                                tint = if (songs.isNotEmpty()) Color.White else Color.DarkGray
                             )
                         }
 
-                        // Botão Play/Pause principal destacado
+                        // Botão Play/Pause principal
                         FloatingActionButton(
                             onClick = { isPlaying = !isPlaying },
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -156,15 +203,21 @@ fun PlayerScreen() {
                             )
                         }
 
+                        // Botão Faixa Seguinte
                         IconButton(
-                            onClick = { /* Seguinte */ },
+                            onClick = {
+                                if (songs.isNotEmpty()) {
+                                    currentIndex = (currentIndex + 1) % songs.size
+                                }
+                            },
+                            enabled = songs.isNotEmpty(),
                             modifier = Modifier.size(56.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.SkipNext,
                                 contentDescription = "Seguinte",
                                 modifier = Modifier.size(36.dp),
-                                tint = Color.White
+                                tint = if (songs.isNotEmpty()) Color.White else Color.DarkGray
                             )
                         }
                     }

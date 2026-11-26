@@ -35,6 +35,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
 
     // Jetpack Compose & Material 3 através do BOM
     val composeBom = platform(libs.androidx.compose.bom)
